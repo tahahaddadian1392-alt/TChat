@@ -1,0 +1,30 @@
+name: Build TChat APK
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unzip
+        run: unzip -q tchat.zip -d app
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '17'}
+      - uses: subosito/flutter-action@v2
+        with: {channel: stable}
+      - name: Build
+        working-directory: app
+        run: |
+          flutter create --platforms=android --project-name tchat --org app.tchat .
+          sed -i '/<application/i\    <uses-permission android:name="android.permission.INTERNET"/>\n    <uses-permission android:name="android.permission.RECORD_AUDIO"/>' android/app/src/main/AndroidManifest.xml
+          sed -i 's/android:label="tchat"/android:label="TChat"/' android/app/src/main/AndroidManifest.xml
+          sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 23/; s/minSdkVersion flutter.minSdkVersion/minSdkVersion 23/' android/app/build.gradle* || true
+          flutter pub get
+          dart run flutter_launcher_icons
+          flutter build apk --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tchat-apk
+          path: app/build/app/outputs/flutter-apk/app-release.apk
