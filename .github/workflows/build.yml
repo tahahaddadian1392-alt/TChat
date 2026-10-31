@@ -21,6 +21,37 @@ jobs:
           sed -i '/<application/i\    <uses-permission android:name="android.permission.INTERNET"/>\n    <uses-permission android:name="android.permission.RECORD_AUDIO"/>' android/app/src/main/AndroidManifest.xml
           sed -i 's/android:label="tchat"/android:label="TChat"/' android/app/src/main/AndroidManifest.xml
           sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 23/; s/minSdkVersion flutter.minSdkVersion/minSdkVersion 23/' android/app/build.gradle* || true
+          if [ -f android/build.gradle.kts ]; then
+          cat >> android/build.gradle.kts <<'EOF'
+
+          subprojects {
+              val fixSdk = { p: Project ->
+                  if (p.name != "app") {
+                      val ext = p.extensions.findByName("android")
+                      if (ext != null) {
+                          val cur = ext.javaClass.methods.firstOrNull { it.name == "getCompileSdk" && it.parameterCount == 0 }?.invoke(ext) as? Int
+                          if (cur == null || cur < 36) {
+                              ext.javaClass.methods.firstOrNull { it.name == "setCompileSdk" && it.parameterCount == 1 }?.invoke(ext, 36)
+                          }
+                      }
+                  }
+              }
+              if (state.executed) fixSdk(this) else afterEvaluate { fixSdk(this) }
+          }
+          EOF
+          else
+          cat >> android/build.gradle <<'EOF'
+
+          subprojects {
+              def fixSdk = { p ->
+                  if (p.name != 'app' && p.plugins.hasPlugin('com.android.library')) {
+                      p.android.compileSdkVersion 36
+                  }
+              }
+              if (state.executed) fixSdk(it) else afterEvaluate { fixSdk(it) }
+          }
+          EOF
+          fi
           flutter pub get
           dart run flutter_launcher_icons
           flutter build apk --release
